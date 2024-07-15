@@ -2,9 +2,7 @@ package com.moulberry.axiom.packet;
 
 import com.google.common.collect.Maps;
 import com.moulberry.axiom.AxiomPaper;
-import com.moulberry.axiom.integration.Integration;
 import com.moulberry.axiom.integration.coreprotect.CoreProtectIntegration;
-import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import io.netty.buffer.Unpooled;
 import net.kyori.adventure.text.Component;
 import net.minecraft.core.BlockPos;
@@ -28,7 +26,6 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.lighting.LightEngine;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Location;
 import org.bukkit.block.BlockFace;
@@ -70,7 +67,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
     }
 
     @Override
-    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
+    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, byte[] message) {
         try {
             this.process(player, message);
         } catch (Throwable t) {
@@ -95,7 +92,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
                 buf -> buf.readBlockPos(), buf -> buf.readById(registry::byIdOrThrow));
         boolean updateNeighbors = friendlyByteBuf.readBoolean();
 
-        int reason = friendlyByteBuf.readVarInt();
+        //int reason = friendlyByteBuf.readVarInt();
         boolean breaking = friendlyByteBuf.readBoolean();
         BlockHitResult blockHit = friendlyByteBuf.readBlockHitResult();
         InteractionHand hand = friendlyByteBuf.readEnum(InteractionHand.class);
@@ -152,10 +149,10 @@ public class SetBlockPacketListener implements PluginMessageListener {
 
                 // Check PlotSquared
                 if (blockState.isAir()) {
-                    if (!Integration.canBreakBlock(bukkitPlayer, world.getBlockAt(blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
+                    if (!plugin.integrationManager.canBreakBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
                         continue;
                     }
-                } else if (!Integration.canPlaceBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
+                } else if (!plugin.integrationManager.canPlaceBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
                     continue;
                 }
 
@@ -187,10 +184,10 @@ public class SetBlockPacketListener implements PluginMessageListener {
 
                 // Check PlotSquared
                 if (blockState.isAir()) {
-                    if (!Integration.canBreakBlock(bukkitPlayer, world.getBlockAt(blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
+                    if (!plugin.integrationManager.canBreakBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
                         continue;
                     }
-                } else if (!Integration.canPlaceBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
+                } else if (!plugin.integrationManager.canPlaceBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
                     continue;
                 }
 
@@ -318,7 +315,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
             if (desiredBlockState.getBlock() != actualBlock) return;
 
             // Check plot squared
-            if (!Integration.canPlaceBlock(bukkitPlayer, new Location(world, clickedPos.getX(), clickedPos.getY(), clickedPos.getZ()))) {
+            if (!plugin.integrationManager.canPlaceBlock(bukkitPlayer, new Location(world, clickedPos.getX(), clickedPos.getY(), clickedPos.getZ()))) {
                 return;
             }
 

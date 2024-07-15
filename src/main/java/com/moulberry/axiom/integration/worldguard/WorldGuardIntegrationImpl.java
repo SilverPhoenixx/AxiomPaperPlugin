@@ -17,21 +17,20 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.*;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
 public class WorldGuardIntegrationImpl {
 
-    static boolean canBreakBlock(Player player, org.bukkit.Location loc) {
+    public boolean canBreakBlock(Player player, org.bukkit.Location loc) {
         return testBuild(player, loc, Flags.BLOCK_BREAK);
     }
 
-    static boolean canPlaceBlock(Player player, org.bukkit.Location loc) {
+    public boolean canPlaceBlock(Player player, org.bukkit.Location loc) {
         return testBuild(player, loc, Flags.BLOCK_PLACE);
     }
 
-    private static boolean testBuild(Player player, org.bukkit.Location loc, StateFlag flag) {
+    private boolean testBuild(Player player, org.bukkit.Location loc, StateFlag flag) {
         WorldGuardPlatform platform = WorldGuard.getInstance().getPlatform();
 
         com.sk89q.worldedit.world.World worldEditWorld = BukkitAdapter.adapt(loc.getWorld());
@@ -50,13 +49,10 @@ public class WorldGuardIntegrationImpl {
         return query.testBuild(BukkitAdapter.adapt(loc), worldGuardPlayer, flag);
     }
 
-    static SectionPermissionChecker checkSection(Player player, World world, int cx, int cy, int cz) {
+    public SectionPermissionChecker checkSection(Player player, World world, int cx, int cy, int cz) {
         int minX = cx * 16;
         int minY = cy * 16;
         int minZ = cz * 16;
-        int maxX = cx * 16 + 15;
-        int maxY = cy * 16 + 15;
-        int maxZ = cz * 16 + 15;
 
         WorldGuardPlatform platform = WorldGuard.getInstance().getPlatform();
 
@@ -136,7 +132,6 @@ public class WorldGuardIntegrationImpl {
                         allowRegions.add(box);
                     }
                 }
-                continue;
             }
 
             // todo: handle membership
@@ -149,11 +144,10 @@ public class WorldGuardIntegrationImpl {
         }
 
         addRegions(sectionBox, denyRegions, allowRegions, finalRegions);
-
         return SectionPermissionChecker.fromBoxWithBooleans(finalRegions, Flags.BUILD.getDefault() == StateFlag.State.ALLOW);
     }
 
-    private static boolean addRegions(Box sectionBox, List<Box> denyRegions, List<Box> allowRegions, List<BoxWithBoolean> finalRegions) {
+    private boolean addRegions(Box sectionBox, List<Box> denyRegions, List<Box> allowRegions, List<BoxWithBoolean> finalRegions) {
         List<Box> denyRegionsCopy = new ArrayList<>(denyRegions);
         denyRegions.clear();
 

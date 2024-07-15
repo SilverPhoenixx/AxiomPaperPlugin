@@ -1,8 +1,6 @@
 package com.moulberry.axiom.packet;
 
 import com.moulberry.axiom.AxiomPaper;
-import com.moulberry.axiom.integration.Integration;
-import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import io.netty.buffer.Unpooled;
 import net.kyori.adventure.text.Component;
 import net.minecraft.network.FriendlyByteBuf;
@@ -26,7 +24,7 @@ public class DeleteEntityPacketListener implements PluginMessageListener {
     }
 
     @Override
-    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
+    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, byte[] message) {
         try {
             this.process(player, message);
         } catch (Throwable t) {
@@ -61,8 +59,7 @@ public class DeleteEntityPacketListener implements PluginMessageListener {
             if (!whitelistedEntities.isEmpty() && !whitelistedEntities.contains(type)) continue;
             if (blacklistedEntities.contains(type)) continue;
 
-            if (!Integration.canBreakBlock(player,
-                    player.getWorld().getBlockAt(entity.getBlockX(), entity.getBlockY(), entity.getBlockZ()))) {
+            if (!plugin.integrationManager.canBreakBlock(player, entity.getBukkitEntity().getLocation())) {
                 continue;
             }
 

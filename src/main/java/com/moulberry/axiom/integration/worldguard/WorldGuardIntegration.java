@@ -1,31 +1,42 @@
 package com.moulberry.axiom.integration.worldguard;
 
+import com.moulberry.axiom.integration.Integration;
 import com.moulberry.axiom.integration.SectionPermissionChecker;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
-public class WorldGuardIntegration {
+public class WorldGuardIntegration extends Integration {
 
-    public static boolean canBreakBlock(Player player, org.bukkit.Location loc) {
-        if (!Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
-            return true;
-        }
-        return WorldGuardIntegrationImpl.canBreakBlock(player, loc);
+    private final WorldGuardIntegrationImpl worldGuardIntegrationImpl;
+    private final boolean worldGuardEnabled;
+    public WorldGuardIntegration() {
+        this.worldGuardIntegrationImpl = new WorldGuardIntegrationImpl();
+        this.worldGuardEnabled = Bukkit.getPluginManager().isPluginEnabled("WorldGuard");
     }
 
-    public static boolean canPlaceBlock(Player player, org.bukkit.Location loc) {
-        if (!Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
+    @Override
+    public boolean canBreakBlock(Player player, Location location) {
+        if (!worldGuardEnabled) {
             return true;
         }
-        return WorldGuardIntegrationImpl.canPlaceBlock(player, loc);
+        return worldGuardIntegrationImpl.canBreakBlock(player, location);
     }
 
-    public static SectionPermissionChecker checkSection(Player player, World world, int cx, int cy, int cz) {
-        if (!Bukkit.getPluginManager().isPluginEnabled("WorldGuard")) {
+    @Override
+    public boolean canPlaceBlock(Player player, Location location) {
+        if (!worldGuardEnabled) {
+            return true;
+        }
+        return worldGuardIntegrationImpl.canPlaceBlock(player, location);
+    }
+
+    public SectionPermissionChecker checkSection(Player player, World world, int cx, int cy, int cz) {
+        if (!worldGuardEnabled) {
             return SectionPermissionChecker.ALL_ALLOWED;
         }
-        return WorldGuardIntegrationImpl.checkSection(player, world, cx, cy, cz);
+        return worldGuardIntegrationImpl.checkSection(player, world, cx, cy, cz);
     }
 
 }

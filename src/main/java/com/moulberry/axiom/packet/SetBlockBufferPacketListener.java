@@ -6,7 +6,6 @@ import com.moulberry.axiom.WorldExtension;
 import com.moulberry.axiom.buffer.BiomeBuffer;
 import com.moulberry.axiom.buffer.BlockBuffer;
 import com.moulberry.axiom.buffer.CompressedBlockEntity;
-import com.moulberry.axiom.integration.Integration;
 import com.moulberry.axiom.integration.SectionPermissionChecker;
 import com.moulberry.axiom.integration.coreprotect.CoreProtectIntegration;
 import com.moulberry.axiom.viaversion.UnknownVersionHelper;
@@ -34,10 +33,10 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.lighting.LightEngine;
 import org.bukkit.Location;
@@ -149,7 +148,7 @@ public class SetBlockBufferPacketListener {
                         continue;
                     }
 
-                    SectionPermissionChecker checker = Integration.checkSection(player.getBukkitEntity(), world.getWorld(), cx, cy, cz);
+                    SectionPermissionChecker checker = plugin.integrationManager.checkSection(player.getBukkitEntity(), world.getWorld(), cx, cy, cz);
                     if (checker != null && checker.noneAllowed()) {
                         continue;
                     }
@@ -357,7 +356,7 @@ public class SetBlockBufferPacketListener {
                         var section = chunk.getSection(cy - minSection);
                         PalettedContainer<Holder<Biome>> container = (PalettedContainer<Holder<Biome>>) section.getBiomes();
 
-                        if (!Integration.canPlaceBlock(player.getBukkitEntity(),
+                        if (!plugin.integrationManager.canPlaceBlock(player.getBukkitEntity(),
                             new Location(player.getBukkitEntity().getWorld(), (x<<2)+1, (y<<2)+1, (z<<2)+1))) return;
 
                         container.set(x & 3, y & 3, z & 3, holder.get());

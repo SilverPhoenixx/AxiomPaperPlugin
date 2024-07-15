@@ -6,7 +6,6 @@ import com.plotsquared.bukkit.player.BukkitPlayer;
 import com.plotsquared.bukkit.util.BukkitUtil;
 import com.plotsquared.core.PlotSquared;
 import com.plotsquared.core.configuration.Settings;
-import com.plotsquared.core.location.Location;
 import com.plotsquared.core.permissions.Permission;
 import com.plotsquared.core.plot.Plot;
 import com.plotsquared.core.plot.PlotArea;
@@ -19,10 +18,9 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.world.block.BlockType;
 import net.minecraft.core.BlockPos;
+import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import java.util.*;
 
@@ -46,23 +44,23 @@ import java.util.*;
  */
 public class PlotSquaredIntegrationImpl {
 
-    static boolean canBreakBlock(Player player, Block block) {
-        Location location = BukkitUtil.adapt(block.getLocation());
-        PlotArea area = location.getPlotArea();
+    public boolean canBreakBlock(Player player, Location location) {
+        com.plotsquared.core.location.Location plotsquareLocation = BukkitUtil.adapt(location);
+        PlotArea area = plotsquareLocation.getPlotArea();
         if (area == null) {
             return true;
         }
 
-        Plot plot = area.getPlot(location);
+        Plot plot = area.getPlot(plotsquareLocation);
         if (plot != null) {
             BukkitPlayer plotPlayer = BukkitUtil.adapt(player);
             // == rather than <= as we only care about the "ground level" not being destroyed
-            if (block.getY() == area.getMinGenHeight()) {
+            if (location.getY() == area.getMinGenHeight()) {
                 if (!plotPlayer.hasPermission(Permission.PERMISSION_ADMIN_DESTROY_GROUNDLEVEL, true)) {
                     return false;
                 }
             }
-            if (area.notifyIfOutsideBuildArea(plotPlayer, location.getY())) {
+            if (area.notifyIfOutsideBuildArea(plotPlayer, plotsquareLocation.getY())) {
                 return false;
             }
             // check unowned plots
@@ -72,7 +70,7 @@ public class PlotSquaredIntegrationImpl {
             // player is breaking another player's plot
             if (!plot.isAdded(plotPlayer.getUUID())) {
                 List<BlockTypeWrapper> destroy = plot.getFlag(BreakFlag.class);
-                final BlockType blockType = BukkitAdapter.asBlockType(block.getType());
+                final BlockType blockType = BukkitAdapter.asBlockType(location.getBlock().getType());
                 for (final BlockTypeWrapper blockTypeWrapper : destroy) {
                     if (blockTypeWrapper.accepts(blockType)) {
                         return true;
@@ -91,17 +89,17 @@ public class PlotSquaredIntegrationImpl {
         return pp.hasPermission(Permission.PERMISSION_ADMIN_DESTROY_ROAD, true);
     }
 
-    static boolean canPlaceBlock(Player player, org.bukkit.Location loc) {
-        Location location = BukkitUtil.adapt(loc);
-        PlotArea area = location.getPlotArea();
+    public boolean canPlaceBlock(Player player, Location location) {
+        com.plotsquared.core.location.Location plotsquareLocation = BukkitUtil.adapt(location);
+        PlotArea area = plotsquareLocation.getPlotArea();
         if (area == null) {
             return true;
         }
 
         BukkitPlayer pp = BukkitUtil.adapt(player);
-        Plot plot = area.getPlot(location);
+        Plot plot = area.getPlot(plotsquareLocation);
         if (plot != null) {
-            if (area.notifyIfOutsideBuildArea(pp, location.getY())) {
+            if (area.notifyIfOutsideBuildArea(pp, plotsquareLocation.getY())) {
                 return false;
             }
             // check unowned plots
@@ -124,7 +122,7 @@ public class PlotSquaredIntegrationImpl {
 
     private static final WeakHashMap<World, Boolean> plotWorldCache = new WeakHashMap<>();
 
-    static boolean isPlotWorld(World world) {
+    public boolean isPlotWorld(World world) {
         if (plotWorldCache.containsKey(world)) {
             return plotWorldCache.get(world);
         }
@@ -136,17 +134,17 @@ public class PlotSquaredIntegrationImpl {
         return isPlotWorld;
     }
 
-    static PlotSquaredIntegration.PlotBounds getCurrentEditablePlot(Player player) {
-        org.bukkit.Location loc = player.getLocation();
+    public PlotSquaredIntegration.PlotBounds getCurrentEditablePlot(Player player) {
+        Location location = player.getLocation();
 
-        Location location = BukkitUtil.adapt(loc);
-        PlotArea area = location.getPlotArea();
+        com.plotsquared.core.location.Location plotsquareLocation = BukkitUtil.adapt(location);
+        PlotArea area = plotsquareLocation.getPlotArea();
         if (area == null) {
             return null;
         }
 
         BukkitPlayer pp = BukkitUtil.adapt(player);
-        Plot plot = area.getPlot(location);
+        Plot plot = area.getPlot(plotsquareLocation);
         if (plot != null) {
             // check unowned plots
             if (!plot.hasOwner()) {
@@ -178,19 +176,19 @@ public class PlotSquaredIntegrationImpl {
         return null;
     }
 
-    private static PlotSquaredIntegration.PlotBounds createBounds(Plot plot, String worldName) {
+    private PlotSquaredIntegration.PlotBounds createBounds(Plot plot, String worldName) {
         Set<PlotSquaredIntegration.PlotBox> boxes = new HashSet<>();
 
         for (CuboidRegion region : plot.getRegions()) {
             BlockPos min = new BlockPos(
-                region.getMinimumPoint().getBlockX(),
-                region.getMinimumPoint().getBlockY(),
-                region.getMinimumPoint().getBlockZ()
+                region.getMinimumPoint().x(),
+                    region.getMinimumPoint().y(),
+                region.getMinimumPoint().z()
             );
             BlockPos max = new BlockPos(
-                region.getMaximumPoint().getBlockX(),
-                region.getMaximumPoint().getBlockY(),
-                region.getMaximumPoint().getBlockZ()
+                region.getMaximumPoint().x(),
+                region.getMaximumPoint().y(),
+                region.getMaximumPoint().z()
             );
             boxes.add(new PlotSquaredIntegration.PlotBox(min, max));
         }
@@ -198,7 +196,7 @@ public class PlotSquaredIntegrationImpl {
         return new PlotSquaredIntegration.PlotBounds(boxes, worldName);
     }
 
-    static SectionPermissionChecker checkSection(Player player, World world, int sectionX, int sectionY, int sectionZ) {
+    public SectionPermissionChecker checkSection(Player player, World world, int sectionX, int sectionY, int sectionZ) {
         int minX = sectionX * 16;
         int minY = sectionY * 16;
         int minZ = sectionZ * 16;
@@ -263,7 +261,6 @@ public class PlotSquaredIntegrationImpl {
 
         // Combine
         Box.combineAll(allowed);
-
         return SectionPermissionChecker.fromAllowedBoxes(allowed);
     }
 }

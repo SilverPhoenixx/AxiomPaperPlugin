@@ -5,8 +5,11 @@ import java.util.List;
 public interface SectionPermissionChecker {
 
     boolean allAllowed();
+
     boolean noneAllowed();
+
     boolean allowed(int x, int y, int z);
+
     Box bounds();
 
     static SectionPermissionChecker combine(SectionPermissionChecker first, SectionPermissionChecker second) {
@@ -175,7 +178,8 @@ public interface SectionPermissionChecker {
         }
     }
 
-    record BooleanBoxes(Box bounds, List<BoxWithBoolean> boxes, boolean defaultValue) implements SectionPermissionChecker {
+    record BooleanBoxes(Box bounds, List<BoxWithBoolean> boxes,
+                        boolean defaultValue) implements SectionPermissionChecker {
         @Override
         public boolean allAllowed() {
             return false;

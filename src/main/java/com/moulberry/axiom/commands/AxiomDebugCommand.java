@@ -2,16 +2,14 @@ package com.moulberry.axiom.commands;
 
 import com.moulberry.axiom.AxiomPaper;
 import com.moulberry.axiom.Restrictions;
-import com.moulberry.axiom.integration.Integration;
+import com.moulberry.axiom.integration.IntegrationManager;
 import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
-import com.moulberry.axiom.integration.worldguard.WorldGuardIntegration;
 import net.kyori.adventure.text.Component;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.bukkit.BukkitCommandManager;
-import org.incendo.cloud.parser.standard.EnumParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.permission.PredicatePermission;
 
@@ -83,55 +81,37 @@ public class AxiomDebugCommand {
                 }
             })
         );
-        enum IntegrationType {
-            PLOT_SQUARED,
-            WORLD_GUARD
-        }
         manager.command(
-            base(manager, "canBreakBlockAtCurrentPosition").optional("type", EnumParser.enumParser(IntegrationType.class)).handler(context -> {
+            base(manager, "canBreakBlockAtCurrentPosition").handler(context -> {
                 if (!(context.sender() instanceof Player player)) return;
-                IntegrationType integrationType = (IntegrationType) context.optional("type").orElse(null);
 
                 Block block = player.getWorld().getBlockAt(player.getLocation());
 
-                boolean canBreakBlock;
-                if (integrationType == IntegrationType.PLOT_SQUARED) {
-                    canBreakBlock = PlotSquaredIntegration.canBreakBlock(player, block);
-                } else if (integrationType == IntegrationType.WORLD_GUARD) {
-                    canBreakBlock = WorldGuardIntegration.canBreakBlock(player, block.getLocation());
-                } else {
-                    canBreakBlock = Integration.canBreakBlock(player, block);
-                }
+                boolean canBreakBlock = axiomPaper.integrationManager.canBreakBlock(player, block.getLocation());
                 context.sender().sendMessage(Component.text("canBreakBlock: " + canBreakBlock));
             })
         );
         manager.command(
-            base(manager, "canPlaceBlockAtCurrentPosition").optional("type", EnumParser.enumParser(IntegrationType.class)).handler(context -> {
+            base(manager, "canPlaceBlockAtCurrentPosition").handler(context -> {
                 if (!(context.sender() instanceof Player player)) return;
-                IntegrationType integrationType = (IntegrationType) context.optional("type").orElse(null);
 
-                boolean canPlaceBlock;
-                if (integrationType == IntegrationType.PLOT_SQUARED) {
-                    canPlaceBlock = PlotSquaredIntegration.canPlaceBlock(player, player.getLocation());
-                } else if (integrationType == IntegrationType.WORLD_GUARD) {
-                    canPlaceBlock = WorldGuardIntegration.canPlaceBlock(player, player.getLocation());
-                } else {
-                    canPlaceBlock = Integration.canPlaceBlock(player, player.getLocation());
-                }
+                Block block = player.getWorld().getBlockAt(player.getLocation());
+
+                boolean canPlaceBlock = axiomPaper.integrationManager.canPlaceBlock(player, block.getLocation());
                 context.sender().sendMessage(Component.text("canPlaceBlock: " + canPlaceBlock));
             })
         );
         manager.command(
             base(manager, "isPlotWorld").handler(context -> {
                 if (!(context.sender() instanceof Player player)) return;
-                boolean isPlotWorld = PlotSquaredIntegration.isPlotWorld(player.getWorld());
+                boolean isPlotWorld = IntegrationManager.PLOTSQUARED_INTEGRATION.isPlotWorld(player.getWorld());
                 context.sender().sendMessage(Component.text("isPlotWorld: " + isPlotWorld));
             })
         );
         manager.command(
             base(manager, "getCurrentEditablePlot").handler(context -> {
                 if (!(context.sender() instanceof Player player)) return;
-                PlotSquaredIntegration.PlotBounds plotBounds = PlotSquaredIntegration.getCurrentEditablePlot(player);
+                PlotSquaredIntegration.PlotBounds plotBounds = IntegrationManager.PLOTSQUARED_INTEGRATION.getCurrentEditablePlot(player);
                 context.sender().sendMessage(Component.text("plotBounds: " + plotBounds));
             })
         );

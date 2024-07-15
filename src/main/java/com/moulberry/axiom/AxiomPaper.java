@@ -6,6 +6,7 @@ import com.moulberry.axiom.buffer.CompressedBlockEntity;
 import com.moulberry.axiom.commands.AxiomDebugCommand;
 import com.moulberry.axiom.event.AxiomCreateWorldPropertiesEvent;
 import com.moulberry.axiom.event.AxiomModifyWorldEvent;
+import com.moulberry.axiom.integration.IntegrationManager;
 import com.moulberry.axiom.integration.coreprotect.CoreProtectIntegration;
 import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import com.moulberry.axiom.packet.*;
@@ -20,15 +21,19 @@ import net.kyori.adventure.key.Key;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.IdMapper;
-import net.minecraft.network.*;
+import net.minecraft.network.Connection;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.ProtocolInfo;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.DiscardedPayload;
 import net.minecraft.network.protocol.game.GameProtocols;
 import net.minecraft.network.protocol.game.ServerGamePacketListener;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.state.BlockState;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameRule;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.entity.Player;
@@ -60,6 +65,7 @@ public class AxiomPaper extends JavaPlugin implements Listener {
     public final Map<UUID, IdMapper<BlockState>> playerBlockRegistry = new ConcurrentHashMap<>();
     public final Map<UUID, Integer> playerProtocolVersion = new ConcurrentHashMap<>();
     public Configuration configuration;
+    public IntegrationManager integrationManager;
 
     public IdMapper<BlockState> allowedBlockRegistry = null;
     private boolean logLargeBlockBufferChanges = false;
@@ -69,6 +75,8 @@ public class AxiomPaper extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         PLUGIN = this;
+
+        this.integrationManager = new IntegrationManager();
 
         this.saveDefaultConfig();
         configuration = this.getConfig();
@@ -168,14 +176,11 @@ public class AxiomPaper extends JavaPlugin implements Listener {
             protocol.codec().encode(friendlyByteBuf, new ServerboundCustomPayloadPacket(new DiscardedPayload(VersionHelper.createResourceLocation("dummy"), Unpooled.buffer())));
             int payloadId = friendlyByteBuf.readVarInt();
 
-            ChannelInitializeListenerHolder.addListener(Key.key("axiom:handle_big_payload"), new ChannelInitializeListener() {
-                @Override
-                public void afterInitChannel(@NonNull Channel channel) {
-                    Connection connection = (Connection) channel.pipeline().get("packet_handler");
-                    channel.pipeline().addBefore("decoder", "axiom-big-payload-handler",
-                        new AxiomBigPayloadHandler(payloadId, connection, setBlockBufferPacketListener,
-                            uploadBlueprintPacketListener, requestChunkDataPacketListener));
-                }
+            ChannelInitializeListenerHolder.addListener(Key.key("axiom:handle_big_payload"), channel -> {
+                Connection connection = (Connection) channel.pipeline().get("packet_handler");
+                channel.pipeline().addBefore("decoder", "axiom-big-payload-handler",
+                    new AxiomBigPayloadHandler(payloadId, connection, setBlockBufferPacketListener,
+                        uploadBlueprintPacketListener, requestChunkDataPacketListener));
             });
         }
 
@@ -221,8 +226,8 @@ public class AxiomPaper extends JavaPlugin implements Listener {
                         Set<PlotSquaredIntegration.PlotBox> bounds = Set.of();
 
                         if (!player.hasPermission("axiom.allow_copying_other_plots")) {
-                            if (PlotSquaredIntegration.isPlotWorld(player.getWorld())) {
-                                PlotSquaredIntegration.PlotBounds editable = PlotSquaredIntegration.getCurrentEditablePlot(player);
+                            if (IntegrationManager.PLOTSQUARED_INTEGRATION.isPlotWorld(player.getWorld())) {
+                                PlotSquaredIntegration.PlotBounds editable = IntegrationManager.PLOTSQUARED_INTEGRATION.getCurrentEditablePlot(player);
                                 if (editable != null) {
                                     restrictions.lastPlotBounds = editable;
                                     bounds = editable.boxes();
@@ -328,7 +333,8 @@ public class AxiomPaper extends JavaPlugin implements Listener {
         return activeAxiomPlayers.contains(player.getUniqueId()) && hasAxiomPermission(player, permission, strict);
     }
 
-    public @Nullable RateLimiter getBlockBufferRateLimiter(UUID uuid) {
+    @Nullable
+    public RateLimiter getBlockBufferRateLimiter(UUID uuid) {
         return this.playerBlockBufferRateLimiters.get(uuid);
     }
 
@@ -346,11 +352,13 @@ public class AxiomPaper extends JavaPlugin implements Listener {
 
     private final WeakHashMap<World, ServerWorldPropertiesRegistry> worldProperties = new WeakHashMap<>();
 
-    public @Nullable ServerWorldPropertiesRegistry getWorldPropertiesIfPresent(World world) {
+    @Nullable
+    public ServerWorldPropertiesRegistry getWorldPropertiesIfPresent(World world) {
         return worldProperties.get(world);
     }
 
-    public @Nullable ServerWorldPropertiesRegistry getOrCreateWorldProperties(World world) {
+    @Nullable
+    public  ServerWorldPropertiesRegistry getOrCreateWorldProperties(World world) {
         if (worldProperties.containsKey(world)) {
             return worldProperties.get(world);
         } else {
