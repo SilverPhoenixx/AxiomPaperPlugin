@@ -17,48 +17,45 @@ public class PlotSquaredIntegration extends Integration {
     public record PlotBox(BlockPos min, BlockPos max) {}
     public record PlotBounds(Set<PlotBox> boxes, String worldName) {}
 
-    private final PlotSquaredIntegrationImpl plotSquareIntegrationImpl;
+    private PlotSquaredIntegrationImpl plotSquareIntegrationImpl;
     private final boolean plotSquaredEnabled;
 
     public PlotSquaredIntegration() {
-        this.plotSquareIntegrationImpl = new PlotSquaredIntegrationImpl();
         this.plotSquaredEnabled = Bukkit.getPluginManager().isPluginEnabled("PlotSquared");
+        if(!plotSquaredEnabled) return;
+        this.plotSquareIntegrationImpl = new PlotSquaredIntegrationImpl();
     }
 
     @Override
     public SectionPermissionChecker checkSection(Player player, World world, int sectionX, int sectionY, int sectionZ) {
-        if (!plotSquaredEnabled) {
-            return SectionPermissionChecker.ALL_ALLOWED;
-        }
         return plotSquareIntegrationImpl.checkSection(player, world, sectionX, sectionY, sectionZ);
     }
 
 
     @Override
+    public boolean isActive() {
+        return plotSquaredEnabled;
+    }
+
+    @Override
     public boolean canBreakBlock(Player player, Location location) {
-        if (!plotSquaredEnabled) {
-            return true;
-        }
         return plotSquareIntegrationImpl.canBreakBlock(player, location);
     }
 
     @Override
     public boolean canPlaceBlock(Player player, Location location) {
-        if (!plotSquaredEnabled) {
-            return true;
-        }
         return plotSquareIntegrationImpl.canPlaceBlock(player, location);
     }
 
     public boolean isPlotWorld(World world) {
-        if (!plotSquaredEnabled) {
+        if (!isActive()) {
             return false;
         }
         return plotSquareIntegrationImpl.isPlotWorld(world);
     }
 
     public PlotSquaredIntegration.PlotBounds getCurrentEditablePlot(Player player) {
-        if (!plotSquaredEnabled) {
+        if (!isActive()) {
             return null;
         }
         return plotSquareIntegrationImpl.getCurrentEditablePlot(player);

@@ -1,6 +1,7 @@
 package com.moulberry.axiom.packet;
 
 import com.moulberry.axiom.AxiomPaper;
+import com.moulberry.axiom.integration.IntegrationManager;
 import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import com.moulberry.axiom.world_properties.server.ServerWorldPropertiesRegistry;
 import com.moulberry.axiom.world_properties.server.ServerWorldPropertyHolder;
@@ -46,7 +47,7 @@ public class SetWorldPropertyListener implements PluginMessageListener {
         }
 
         // Don't allow on plot worlds
-        if (PlotSquaredIntegration.isPlotWorld(player.getWorld())) {
+        if (IntegrationManager.PLOTSQUARED_INTEGRATION.isPlotWorld(player.getWorld())) {
             sendAck(player, updateId);
             return;
         }

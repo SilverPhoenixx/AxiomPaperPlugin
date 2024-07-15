@@ -20,8 +20,9 @@ public class IntegrationManager {
 
     public IntegrationManager() {
         this.integrations = new ArrayList<>();
-        this.integrations.add(WORLDGUARD_INTEGRATION);
-        this.integrations.add(PLOTSQUARED_INTEGRATION);
+
+        if(WORLDGUARD_INTEGRATION.isActive()) this.integrations.add(WORLDGUARD_INTEGRATION);
+        if(PLOTSQUARED_INTEGRATION.isActive()) this.integrations.add(PLOTSQUARED_INTEGRATION);
     }
     public void addIntegration(Integration integration) {
         integrations.add(integration);

@@ -120,7 +120,7 @@ public class ManipulateEntityPacketListener implements PluginMessageListener {
             Vec3 position = entity.position();
             BlockPos containing = BlockPos.containing(position.x, position.y, position.z);
 
-            if (!Integration.canPlaceBlock(player, new Location(player.getWorld(),
+            if (!plugin.integrationManager.canPlaceBlock(player, new Location(player.getWorld(),
                     containing.getX(), containing.getY(), containing.getZ()))) {
                 continue;
             }
@@ -160,7 +160,7 @@ public class ManipulateEntityPacketListener implements PluginMessageListener {
 
                 containing = BlockPos.containing(newX, newY, newZ);
 
-                if (Integration.canPlaceBlock(player, new Location(player.getWorld(),
+                if (plugin.integrationManager.canPlaceBlock(player, new Location(player.getWorld(),
                         containing.getX(), containing.getY(), containing.getZ()))) {
                     entity.teleportTo(serverLevel, newX, newY, newZ, Set.of(), newYaw, newPitch);
                 }
@@ -191,7 +191,7 @@ public class ManipulateEntityPacketListener implements PluginMessageListener {
                         position = passenger.position();
                         containing = BlockPos.containing(position.x, position.y, position.z);
 
-                        if (!Integration.canPlaceBlock(player, new Location(player.getWorld(),
+                        if (!plugin.integrationManager.canPlaceBlock(player, new Location(player.getWorld(),
                                 containing.getX(), containing.getY(), containing.getZ()))) {
                             continue;
                         }

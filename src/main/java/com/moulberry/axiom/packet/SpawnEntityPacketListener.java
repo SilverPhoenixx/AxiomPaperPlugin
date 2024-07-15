@@ -3,6 +3,7 @@ package com.moulberry.axiom.packet;
 import com.moulberry.axiom.AxiomPaper;
 import com.moulberry.axiom.NbtSanitization;
 import com.moulberry.axiom.integration.Integration;
+import com.moulberry.axiom.integration.IntegrationManager;
 import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import com.moulberry.axiom.viaversion.UnknownVersionHelper;
 import com.moulberry.axiom.viaversion.ViaVersionHelper;
@@ -82,7 +83,7 @@ public class SpawnEntityPacketListener implements PluginMessageListener {
                 continue;
             }
 
-            if (!Integration.canPlaceBlock(player, new Location(player.getWorld(),
+            if (!plugin.integrationManager.canPlaceBlock(player, new Location(player.getWorld(),
                     blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
                 continue;
             }

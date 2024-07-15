@@ -4,6 +4,7 @@ import com.moulberry.axiom.AxiomConstants;
 import com.moulberry.axiom.AxiomPaper;
 import com.moulberry.axiom.VersionHelper;
 import com.moulberry.axiom.buffer.CompressedBlockEntity;
+import com.moulberry.axiom.integration.IntegrationManager;
 import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.longs.*;
@@ -88,7 +89,7 @@ public class RequestChunkDataPacketListener implements PluginMessageListener {
         int maxChunkLoadDistance = this.plugin.configuration.getInt("max-chunk-load-distance");
 
         // Don't allow loading chunks outside render distance for plot worlds
-        if (PlotSquaredIntegration.isPlotWorld(level.getWorld())) {
+        if (IntegrationManager.PLOTSQUARED_INTEGRATION.isPlotWorld(level.getWorld())) {
             maxChunkLoadDistance = 0;
         }
 

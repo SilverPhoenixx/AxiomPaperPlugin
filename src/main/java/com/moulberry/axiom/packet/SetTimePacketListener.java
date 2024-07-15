@@ -2,6 +2,7 @@ package com.moulberry.axiom.packet;
 
 import com.moulberry.axiom.AxiomPaper;
 import com.moulberry.axiom.event.AxiomTimeChangeEvent;
+import com.moulberry.axiom.integration.IntegrationManager;
 import com.moulberry.axiom.integration.plotsquared.PlotSquaredIntegration;
 import io.netty.buffer.Unpooled;
 import net.kyori.adventure.text.Component;
@@ -54,7 +55,7 @@ public class SetTimePacketListener implements PluginMessageListener {
         }
 
         // Don't allow on plot worlds
-        if (PlotSquaredIntegration.isPlotWorld(player.getWorld())) {
+        if (IntegrationManager.PLOTSQUARED_INTEGRATION.isPlotWorld(player.getWorld())) {
             return;
         }
 
