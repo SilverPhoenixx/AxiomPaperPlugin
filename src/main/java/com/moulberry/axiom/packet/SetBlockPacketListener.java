@@ -67,7 +67,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
     }
 
     @Override
-    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, byte[] message) {
+    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
         try {
             this.process(player, message);
         } catch (Throwable t) {
@@ -92,7 +92,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
                 buf -> buf.readBlockPos(), buf -> buf.readById(registry::byIdOrThrow));
         boolean updateNeighbors = friendlyByteBuf.readBoolean();
 
-        //int reason = friendlyByteBuf.readVarInt();
+        int reason = friendlyByteBuf.readVarInt();
         boolean breaking = friendlyByteBuf.readBoolean();
         BlockHitResult blockHit = friendlyByteBuf.readBlockHitResult();
         InteractionHand hand = friendlyByteBuf.readEnum(InteractionHand.class);
@@ -149,7 +149,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
 
                 // Check PlotSquared
                 if (blockState.isAir()) {
-                    if (!plugin.integrationManager.canBreakBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
+                    if (!plugin.integrationManager.canBreakBlock(bukkitPlayer, world.getBlockAt(blockPos.getX(), blockPos.getY(), blockPos.getZ()).getLocation())) {
                         continue;
                     }
                 } else if (!plugin.integrationManager.canPlaceBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
@@ -184,7 +184,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
 
                 // Check PlotSquared
                 if (blockState.isAir()) {
-                    if (!plugin.integrationManager.canBreakBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
+                    if (!plugin.integrationManager.canBreakBlock(bukkitPlayer, world.getBlockAt(blockPos.getX(), blockPos.getY(), blockPos.getZ()).getLocation())) {
                         continue;
                     }
                 } else if (!plugin.integrationManager.canPlaceBlock(bukkitPlayer, new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ()))) {
