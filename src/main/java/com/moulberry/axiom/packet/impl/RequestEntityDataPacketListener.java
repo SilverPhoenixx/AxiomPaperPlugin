@@ -69,7 +69,7 @@ public class RequestEntityDataPacketListener implements PacketHandler {
                 continue;
             }
 
-            if (!Integration.canPlaceBlock(bukkitPlayer, new Location(bukkitPlayer.getWorld(),
+            if (!plugin.integrationManager.canPlaceBlock(bukkitPlayer, new Location(bukkitPlayer.getWorld(),
                     entity.getBlockX(), entity.getBlockY(), entity.getBlockZ()))) {
                 continue;
             }
