@@ -1,8 +1,9 @@
-package com.moulberry.axiom.packet;
+package com.moulberry.axiom.packet.impl;
 
 import com.google.common.collect.Maps;
 import com.moulberry.axiom.AxiomPaper;
 import com.moulberry.axiom.integration.coreprotect.CoreProtectIntegration;
+import com.moulberry.axiom.packet.PacketHandler;
 import io.netty.buffer.Unpooled;
 import net.kyori.adventure.text.Component;
 import net.minecraft.core.BlockPos;
@@ -10,6 +11,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.IdMapper;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -28,25 +30,32 @@ import net.minecraft.world.level.lighting.LightEngine;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.craftbukkit.block.CraftBlock;
+import org.bukkit.craftbukkit.block.CraftBlockState;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.craftbukkit.event.CraftEventFactory;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import xyz.jpenilla.reflectionremapper.ReflectionRemapper;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntFunction;
 
-public class SetBlockPacketListener implements PluginMessageListener {
+public class SetBlockPacketListener implements PacketHandler {
 
     private final AxiomPaper plugin;
     private final Method updateBlockEntityTicker;
@@ -66,16 +75,14 @@ public class SetBlockPacketListener implements PluginMessageListener {
         }
     }
 
-    @Override
-    public void onPluginMessageReceived(@NotNull String channel, @NotNull Player player, @NotNull byte[] message) {
-        try {
-            this.process(player, message);
-        } catch (Throwable t) {
-            player.kick(Component.text("Error while processing packet " + channel + ": " + t.getMessage()));
+    public static class AxiomPlacingCraftBlockState extends CraftBlockState {
+        public AxiomPlacingCraftBlockState(@Nullable World world, BlockPos blockPosition, BlockState blockData) {
+            super(world, blockPosition, blockData);
         }
     }
 
-    private void process(Player bukkitPlayer, byte[] message) {
+    @Override
+    public void onReceive(Player bukkitPlayer, RegistryFriendlyByteBuf friendlyByteBuf) {
         if (!this.plugin.canUseAxiom(bukkitPlayer, "axiom.build.place")) {
             return;
         }
@@ -85,8 +92,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
         }
 
         // Read packet
-        FriendlyByteBuf friendlyByteBuf = new FriendlyByteBuf(Unpooled.wrappedBuffer(message));
-        IntFunction<Map<BlockPos, BlockState>> mapFunction = FriendlyByteBuf.limitValue(Maps::newLinkedHashMapWithExpectedSize, 512);
+        IntFunction<Map<BlockPos, BlockState>> mapFunction = this.plugin.limitCollection(Maps::newLinkedHashMapWithExpectedSize);
         IdMapper<BlockState> registry = this.plugin.getBlockRegistry(bukkitPlayer.getUniqueId());
         Map<BlockPos, BlockState> blocks = friendlyByteBuf.readMap(mapFunction,
                 buf -> buf.readBlockPos(), buf -> buf.readById(registry::byIdOrThrow));
@@ -103,6 +109,8 @@ public class SetBlockPacketListener implements PluginMessageListener {
         if (sequenceId >= 0) {
             player.connection.ackBlockChangesUpTo(sequenceId);
         }
+
+        BlockPlaceContext blockPlaceContext = new BlockPlaceContext(player, hand, player.getItemInHand(hand), blockHit);
 
         if (!blockHit.getLocation().equals(Vec3.ZERO)) {
             org.bukkit.inventory.ItemStack heldItem;
@@ -123,11 +131,35 @@ public class SetBlockPacketListener implements PluginMessageListener {
             if (!playerInteractEvent.callEvent()) {
                 return;
             }
+
+            // Call BlockMultiPlace / BlockPlace event
+            List<org.bukkit.block.BlockState> blockStates = new ArrayList<>();
+            World world = player.serverLevel().getWorld();
+            for (Map.Entry<BlockPos, BlockState> entry : blocks.entrySet()) {
+                BlockState existing = player.serverLevel().getBlockState(entry.getKey());
+                if (existing.canBeReplaced()) {
+                    blockStates.add(new AxiomPlacingCraftBlockState(world, entry.getKey(), entry.getValue()));
+                }
+            }
+
+            if (!blockStates.isEmpty()) {
+                Cancellable event;
+                if (blockStates.size() > 1) {
+                    event = CraftEventFactory.callBlockMultiPlaceEvent(player.serverLevel(),
+                            player, hand, blockStates, blockHit.getBlockPos().getX(),
+                            blockHit.getBlockPos().getY(), blockHit.getBlockPos().getZ());
+                } else {
+                    event = CraftEventFactory.callBlockPlaceEvent(player.serverLevel(),
+                            player, hand, blockStates.get(0), blockHit.getBlockPos().getX(),
+                            blockHit.getBlockPos().getY(), blockHit.getBlockPos().getZ());
+                }
+                if (event.isCancelled()) {
+                    return;
+                }
+            }
         }
 
         CraftWorld world = player.level().getWorld();
-
-        BlockPlaceContext blockPlaceContext = new BlockPlaceContext(player, hand, player.getItemInHand(hand), blockHit);
 
         // Update blocks
         if (updateNeighbors) {
@@ -204,7 +236,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
 
                 ServerLevel level = player.serverLevel();
                 LevelChunk chunk = level.getChunk(cx, cz);
-                chunk.setUnsaved(true);
+                chunk.markUnsaved();
 
                 LevelChunkSection section = chunk.getSection(level.getSectionIndexFromSectionY(cy));
                 boolean hasOnlyAir = section.hasOnlyAir();
@@ -267,7 +299,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
                     level.getChunkSource().blockChanged(blockPos);
 
                     // Update Light
-                    if (LightEngine.hasDifferentLightProperties(chunk, blockPos, old, blockState)) {
+                    if (LightEngine.hasDifferentLightProperties(old, blockState)) {
                         // Note: Skylight Sources not currently needed on Paper due to Starlight
                         // This might change in the future, so be careful!
                         // chunk.getSkyLightSources().update(chunk, x, by, z);
@@ -294,6 +326,7 @@ public class SetBlockPacketListener implements PluginMessageListener {
                 boolean nowHasOnlyAir = section.hasOnlyAir();
                 if (hasOnlyAir != nowHasOnlyAir) {
                     level.getChunkSource().getLightEngine().updateSectionStatus(SectionPos.of(cx, cy, cz), nowHasOnlyAir);
+                    level.getChunkSource().onSectionEmptinessChanged(cx, cy, cz, nowHasOnlyAir);
                 }
             }
         }
@@ -322,6 +355,11 @@ public class SetBlockPacketListener implements PluginMessageListener {
             ItemStack inHand = player.getItemInHand(hand);
 
             BlockItem.updateCustomBlockEntityTag(player.level(), player, clickedPos, inHand);
+
+            BlockEntity blockEntity = player.level().getBlockEntity(clickedPos);
+            if (blockEntity != null) {
+                blockEntity.applyComponentsFromItemStack(inHand);
+            }
 
             if (!(actualBlock instanceof BedBlock) && !(actualBlock instanceof DoublePlantBlock) && !(actualBlock instanceof DoorBlock)) {
                 actualBlock.setPlacedBy(player.level(), clickedPos, actualBlockState, player, inHand);

@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
 import net.minecraft.resources.ResourceLocation;
@@ -23,6 +24,9 @@ import net.minecraft.world.level.chunk.PalettedContainer;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 public class BlueprintIo {
 
@@ -89,9 +93,11 @@ public class BlueprintIo {
             long pos = blockPos.asLong();
 
             String id = blockEntityCompound.getString("id");
-            BlockEntityType<?> type = BuiltInRegistries.BLOCK_ENTITY_TYPE.get(VersionHelper.createResourceLocation(id));
+            Optional<Holder.Reference<BlockEntityType<?>>> typeOptional = BuiltInRegistries.BLOCK_ENTITY_TYPE.get(VersionHelper.createResourceLocation(id));
 
-            if (type != null) {
+            if (typeOptional.isPresent()) {
+                BlockEntityType<?> type = typeOptional.get().value();
+                
                 PalettedContainer<BlockState> container = blockMap.get(BlockPos.asLong(
                     blockPos.getX() >> 4,
                     blockPos.getY() >> 4,
@@ -111,7 +117,23 @@ public class BlueprintIo {
             }
         }
 
-        return new RawBlueprint(header, thumbnailBytes, blockMap, blockEntities);
+        ListTag entitiesTag = blockDataTag.getList("Entities", Tag.TAG_COMPOUND);
+        List<CompoundTag> entities = new ArrayList<>();
+        for (Tag tag : entitiesTag) {
+            CompoundTag entityCompound = (CompoundTag) tag;
+
+            // Data Fix
+            if (blueprintDataVersion != currentDataVersion) {
+                Dynamic<Tag> dynamic = new Dynamic<>(NbtOps.INSTANCE, entityCompound);
+                Dynamic<Tag> output = DataFixers.getDataFixer().update(References.ENTITY, dynamic,
+                        blueprintDataVersion, currentDataVersion);
+                entityCompound = (CompoundTag) output.getValue();
+            }
+
+            entities.add(entityCompound);
+        }
+
+        return new RawBlueprint(header, thumbnailBytes, blockMap, blockEntities, entities);
     }
 
     public static final Codec<PalettedContainer<BlockState>> BLOCK_STATE_CODEC = PalettedContainer.codecRW(Block.BLOCK_STATE_REGISTRY, BlockState.CODEC,
@@ -135,41 +157,6 @@ public class BlueprintIo {
         }
 
         return map;
-    }
-
-    public static void writeHeader(Path inPath, Path outPath, BlueprintHeader newHeader) throws IOException {
-        byte[] thumbnailAndBlockBytes;
-        try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(inPath))) {
-            if (inputStream.available() < 4) throw NOT_VALID_BLUEPRINT;
-            DataInputStream dataInputStream = new DataInputStream(inputStream);
-
-            int magic = dataInputStream.readInt();
-            if (magic != MAGIC) throw NOT_VALID_BLUEPRINT;
-
-            // Header
-            int headerLength = dataInputStream.readInt(); // Ignore header length
-            if (dataInputStream.skip(headerLength) < headerLength) throw NOT_VALID_BLUEPRINT;
-
-            thumbnailAndBlockBytes = dataInputStream.readAllBytes();
-        }
-
-        try (OutputStream outputStream = new BufferedOutputStream(Files.newOutputStream(outPath))) {
-            DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
-
-            dataOutputStream.writeInt(MAGIC);
-
-            // Write header
-            CompoundTag headerTag = newHeader.save(new CompoundTag());
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (DataOutputStream os = new DataOutputStream(baos)) {
-                NbtIo.write(headerTag, os);
-            }
-            dataOutputStream.writeInt(baos.size());
-            baos.writeTo(dataOutputStream);
-
-            // Copy remaining bytes
-            dataOutputStream.write(thumbnailAndBlockBytes);
-        }
     }
 
     public static void writeRaw(OutputStream outputStream, RawBlueprint rawBlueprint) throws IOException {
@@ -239,6 +226,11 @@ public class BlueprintIo {
             }
         });
         compound.put("BlockEntities", blockEntitiesTag);
+
+        // Write entities
+        ListTag entitiesTag = new ListTag();
+        entitiesTag.addAll(rawBlueprint.entities());
+        compound.put("Entities", entitiesTag);
 
         baos.reset();
         NbtIo.writeCompressed(compound, baos);

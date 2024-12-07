@@ -1,4 +1,4 @@
-package com.moulberry.axiom.packet;
+package com.moulberry.axiom.packet.impl;
 
 import com.google.common.util.concurrent.RateLimiter;
 import com.moulberry.axiom.AxiomPaper;
@@ -8,6 +8,7 @@ import com.moulberry.axiom.buffer.BlockBuffer;
 import com.moulberry.axiom.buffer.CompressedBlockEntity;
 import com.moulberry.axiom.integration.SectionPermissionChecker;
 import com.moulberry.axiom.integration.coreprotect.CoreProtectIntegration;
+import com.moulberry.axiom.packet.PacketHandler;
 import com.moulberry.axiom.viaversion.UnknownVersionHelper;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectMap;
@@ -18,6 +19,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundChunksBiomesPacket;
 import net.minecraft.resources.ResourceKey;
@@ -40,6 +42,8 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.lighting.LightEngine;
 import org.bukkit.Location;
+import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.entity.Player;
 import xyz.jpenilla.reflectionremapper.ReflectionRemapper;
 
 import java.lang.reflect.InvocationTargetException;
@@ -47,11 +51,10 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class SetBlockBufferPacketListener {
+public class SetBlockBufferPacketListener implements PacketHandler {
 
     private final AxiomPaper plugin;
     private final Method updateBlockEntityTicker;
-    private final WeakHashMap<ServerPlayer, RateLimiter> packetRateLimiter = new WeakHashMap<>();
 
     public SetBlockBufferPacketListener(AxiomPaper plugin) {
         this.plugin = plugin;
@@ -68,8 +71,14 @@ public class SetBlockBufferPacketListener {
         }
     }
 
-    public void onReceive(ServerPlayer player, FriendlyByteBuf friendlyByteBuf) {
-        MinecraftServer server = player.getServer();
+    @Override
+    public boolean handleAsync() {
+        return true;
+    }
+
+    public void onReceive(Player player, RegistryFriendlyByteBuf friendlyByteBuf) {
+        ServerPlayer serverPlayer = ((CraftPlayer)player).getHandle();
+        MinecraftServer server = serverPlayer.getServer();
         if (server == null) return;
 
         ResourceKey<Level> worldKey = friendlyByteBuf.readResourceKey(Registries.DIMENSION);
@@ -77,42 +86,42 @@ public class SetBlockBufferPacketListener {
         boolean continuation = friendlyByteBuf.readBoolean();
 
         if (!continuation) {
-            UnknownVersionHelper.skipTagUnknown(friendlyByteBuf, player.getBukkitEntity());
+            UnknownVersionHelper.skipTagUnknown(friendlyByteBuf, serverPlayer.getBukkitEntity());
         }
 
-        RateLimiter rateLimiter = this.plugin.getBlockBufferRateLimiter(player.getUUID());
+        RateLimiter rateLimiter = this.plugin.getBlockBufferRateLimiter(serverPlayer.getUUID());
 
         byte type = friendlyByteBuf.readByte();
         if (type == 0) {
             AtomicBoolean reachedRateLimit = new AtomicBoolean(false);
-            BlockBuffer buffer = BlockBuffer.load(friendlyByteBuf, rateLimiter, reachedRateLimit, this.plugin.getBlockRegistry(player.getUUID()));
+            BlockBuffer buffer = BlockBuffer.load(friendlyByteBuf, rateLimiter, reachedRateLimit, this.plugin.getBlockRegistry(serverPlayer.getUUID()));
             if (reachedRateLimit.get()) {
-                player.sendSystemMessage(Component.literal("[Axiom] Exceeded server rate-limit of " + (int)rateLimiter.getRate() + " sections per second")
+                serverPlayer.sendSystemMessage(Component.literal("[Axiom] Exceeded server rate-limit of " + (int)rateLimiter.getRate() + " sections per second")
                     .withStyle(ChatFormatting.RED));
             }
 
             if (this.plugin.logLargeBlockBufferChanges()) {
-                this.plugin.getLogger().info("Player " + player.getUUID() + " modified " + buffer.entrySet().size() + " chunk sections (blocks)");
+                this.plugin.getLogger().info("Player " + serverPlayer.getUUID() + " modified " + buffer.entrySet().size() + " chunk sections (blocks)");
                 if (buffer.getTotalBlockEntities() > 0) {
-                    this.plugin.getLogger().info("Player " + player.getUUID() + " modified " + buffer.getTotalBlockEntities() + " block entities, compressed bytes = " +
+                    this.plugin.getLogger().info("Player " + serverPlayer.getUUID() + " modified " + buffer.getTotalBlockEntities() + " block entities, compressed bytes = " +
                         buffer.getTotalBlockEntityBytes());
                 }
             }
 
-            applyBlockBuffer(player, server, buffer, worldKey);
+            applyBlockBuffer(serverPlayer, server, buffer, worldKey);
         } else if (type == 1) {
             AtomicBoolean reachedRateLimit = new AtomicBoolean(false);
             BiomeBuffer buffer = BiomeBuffer.load(friendlyByteBuf, rateLimiter, reachedRateLimit);
             if (reachedRateLimit.get()) {
-                player.sendSystemMessage(Component.literal("[Axiom] Exceeded server rate-limit of " + (int)rateLimiter.getRate() + " sections per second")
+                serverPlayer.sendSystemMessage(Component.literal("[Axiom] Exceeded server rate-limit of " + (int)rateLimiter.getRate() + " sections per second")
                                                   .withStyle(ChatFormatting.RED));
             }
 
             if (this.plugin.logLargeBlockBufferChanges()) {
-                this.plugin.getLogger().info("Player " + player.getUUID() + " modified " + buffer.size() + " chunk sections (biomes)");
+                this.plugin.getLogger().info("Player " + serverPlayer.getUUID() + " modified " + buffer.size() + " chunk sections (biomes)");
             }
 
-            applyBiomeBuffer(player, server, buffer, worldKey);
+            applyBiomeBuffer(serverPlayer, server, buffer, worldKey);
         } else {
             throw new RuntimeException("Unknown buffer type: " + type);
         }
@@ -144,7 +153,7 @@ public class SetBlockBufferPacketListener {
                     int cz = BlockPos.getZ(entry.getLongKey());
                     PalettedContainer<BlockState> container = entry.getValue();
 
-                    if (cy < world.getMinSection() || cy >= world.getMaxSection()) {
+                    if (cy < world.getMinSectionY() || cy > world.getMaxSectionY()) {
                         continue;
                     }
 
@@ -237,7 +246,7 @@ public class SetBlockBufferPacketListener {
                                     }
 
                                     // Update Light
-                                    sectionLightChanged |= LightEngine.hasDifferentLightProperties(chunk, blockPos, old, blockState);
+                                    sectionLightChanged |= LightEngine.hasDifferentLightProperties(old, blockState);
 
                                     // Update Poi
                                     Optional<Holder<PoiType>> newPoi = containerMaybeHasPoi ? PoiTypes.forState(blockState) : Optional.empty();
@@ -302,11 +311,12 @@ public class SetBlockBufferPacketListener {
                     boolean nowHasOnlyAir = section.hasOnlyAir();
                     if (hasOnlyAir != nowHasOnlyAir) {
                         world.getChunkSource().getLightEngine().updateSectionStatus(SectionPos.of(cx, cy, cz), nowHasOnlyAir);
+                        world.getChunkSource().onSectionEmptinessChanged(cx, cy, cz, nowHasOnlyAir);
                     }
 
                     if (sectionChanged) {
                         extension.sendChunk(cx, cz);
-                        chunk.setUnsaved(true);
+                        chunk.markUnsaved();
                     }
                     if (sectionLightChanged) {
                         extension.lightChunk(cx, cz);
@@ -334,21 +344,21 @@ public class SetBlockBufferPacketListener {
 
                 Set<LevelChunk> changedChunks = new HashSet<>();
 
-                int minSection = world.getMinSection();
-                int maxSection = world.getMaxSection();
+                int minSection = world.getMinSectionY();
+                int maxSection = world.getMaxSectionY();
 
-                Optional<Registry<Biome>> registryOptional = world.registryAccess().registry(Registries.BIOME);
+                Optional<Registry<Biome>> registryOptional = world.registryAccess().lookup(Registries.BIOME);
                 if (registryOptional.isEmpty()) return;
 
                 Registry<Biome> registry = registryOptional.get();
 
                 biomeBuffer.forEachEntry((x, y, z, biome) -> {
                     int cy = y >> 2;
-                    if (cy < minSection || cy >= maxSection) {
+                    if (cy < minSection || cy > maxSection) {
                         return;
                     }
 
-                    var holder = registry.getHolder(biome);
+                    var holder = registry.get(biome);
                     if (holder.isPresent()) {
                         var chunk = (LevelChunk) world.getChunk(x >> 2, z >> 2, ChunkStatus.FULL, false);
                         if (chunk == null) return;
@@ -367,7 +377,7 @@ public class SetBlockBufferPacketListener {
                 var chunkMap = world.getChunkSource().chunkMap;
                 HashMap<ServerPlayer, List<LevelChunk>> map = new HashMap<>();
                 for (LevelChunk chunk : changedChunks) {
-                    chunk.setUnsaved(true);
+                    chunk.markUnsaved();
                     ChunkPos chunkPos = chunk.getPos();
                     for (ServerPlayer serverPlayer2 : chunkMap.getPlayers(chunkPos, false)) {
                         map.computeIfAbsent(serverPlayer2, serverPlayer -> new ArrayList<>()).add(chunk);

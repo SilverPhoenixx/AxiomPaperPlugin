@@ -25,6 +25,7 @@ permissions:
       axiom.entity.spawn: true
       axiom.entity.manipulate: true
       axiom.entity.delete: true
+      axiom.entity.request_data: true
   axiom.blueprint.*:
     description: Allows use of all blueprint-related features
     default: op
@@ -32,6 +33,12 @@ permissions:
       axiom.blueprint.upload: true
       axiom.blueprint.request: true
       axiom.blueprint.manifest: true
+  axiom.annotation.*:
+    description: Allows creating and viewing annotations
+    default: op
+    children:
+      axiom.annotation.create: true
+      axiom.annotation.view: true
   axiom.chunk.*:
     description: Allows use of all chunk-related features
     default: op
